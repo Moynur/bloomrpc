@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useState } from "react";
-import { Button, Icon, Modal, Tooltip, Tree } from 'antd';
+import { Button, Icon, Modal, Tooltip, Tree, Input } from 'antd';
 import { Badge } from '../Badge/Badge';
 import { OnProtoUpload, ProtoFile, ProtoService, importProtos } from '../../behaviour';
 import { PathResolution } from "./PathResolution";
@@ -12,16 +12,55 @@ interface SidebarProps {
   onProtoUpload: OnProtoUpload
   onDeleteAll: () => void
   onReload: () => void
+  onMethodDoubleClick: (methodName: string, protoService: ProtoService) => void
 }
 
-export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, onReload }: SidebarProps) {
+export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, onReload, onMethodDoubleClick }: SidebarProps) {
 
   const [importPaths, setImportPaths] = useState<string[]>([""]);
   const [importPathVisible, setImportPathsVisible] = useState(false);
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filterMatch, setFilterMatch] = useState<string|null>(null);
 
   useEffect(() => {
     setImportPaths(getImportPaths());
   }, []);
+
+  /**
+   * An internal function to retrieve protobuff from the selected key
+   * @param selected The selected key from the directory tree
+   */
+  function processSelectedKey(selected: string | undefined) {
+    // We handle only methods.
+    if (!selected || !selected.includes("method:")) {
+      return undefined;
+    }
+
+    const fragments = selected.split('||');
+    const fileName = fragments[0];
+    const methodName = fragments[1].replace('method:', '');
+    const serviceName = fragments[2].replace('service:', '');
+
+    const protodef = protos.find((protoFile) => {
+      const match = Object.keys(protoFile.services).find(
+        (service) => service === serviceName &&
+          fileName === protoFile.services[serviceName].proto.filePath
+      );
+      return Boolean(match);
+    });
+
+    if (!protodef) {
+      return undefined;
+    }
+    return {methodName, protodef, serviceName}
+  }
+
+  function toggleFilter() {
+    setFilterVisible(!filterVisible);
+    if (filterVisible) {
+      setFilterMatch(null);
+    }
+  }
 
   return (
     <>
@@ -39,10 +78,15 @@ export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, 
           />
         </Tooltip>
       </div>
+
       <div style={styles.optionsContainer}>
         <div style={{width: "50%"}}>
           <Tooltip title="Reload" placement="bottomLeft" align={{offset: [-8, 0]}}>
-            <Button type="ghost" style={{height: 22, paddingRight: 5, paddingLeft: 5}} onClick={onReload}>
+            <Button
+              type="ghost"
+              style={{height: 24, paddingRight: 5, paddingLeft: 5}}
+              onClick={onReload}
+            >
               <Icon type="reload" style={{cursor: "pointer", color: "#1d93e6"}}/>
             </Button>
           </Tooltip>
@@ -50,10 +94,20 @@ export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, 
           <Tooltip title="Import Paths" placement="bottomLeft" align={{offset: [-8, 0]}}>
             <Button
                 type="ghost"
-                style={{height: 22, paddingRight: 5, paddingLeft: 5, marginLeft: 5}}
+                style={{height: 24, paddingRight: 5, paddingLeft: 5, marginLeft: 5}}
                 onClick={() => setImportPathsVisible(true)}
             >
               <Icon type="file-search" style={{cursor: "pointer", color: "#1d93e6"}}/>
+            </Button>
+          </Tooltip>
+
+          <Tooltip title="Filter method names" placement="bottomLeft" align={{offset: [-8, 0]}}>
+            <Button
+              type="ghost"
+              style={{height: 24, paddingRight: 5, paddingLeft: 5, marginLeft: 5}}
+              onClick={() => toggleFilter()}
+            >
+              <Icon type="filter" style={{cursor: "pointer", color: "#1d93e6"}}/>
             </Button>
           </Tooltip>
 
@@ -81,41 +135,48 @@ export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, 
         </div>
         <div style={{width: "50%", textAlign: "right"}}>
           <Tooltip title="Delete all" placement="bottomRight" align={{offset: [10, 0]}}>
-            <Button type="danger" style={{height: 22, paddingRight: 5, paddingLeft: 5}} onClick={onDeleteAll}>
-              <Icon type="delete" style={{cursor: "pointer", }} />
+            <Button type="ghost" style={{height: 24, paddingRight: 5, paddingLeft: 5}} onClick={onDeleteAll}>
+              <Icon type="delete" style={{cursor: "pointer", color: "red" }} />
             </Button>
           </Tooltip>
         </div>
       </div>
+
       <div style={{
         overflow: "auto",
-        maxHeight: "calc(100vh - 85px)"
+        maxHeight: "calc(100vh - 85px)",
+        height: "100%"
       }}>
+
+        <Input
+          placeholder={"Filter methods"}
+          hidden={!filterVisible}
+          onChange={(v) => setFilterMatch(v.target.value || null)}
+        />
+
         {protos.length > 0 && <Tree.DirectoryTree
           showIcon
           defaultExpandAll
           onSelect={async (selectedKeys) => {
             const selected = selectedKeys.pop();
+            const protoDefinitions = processSelectedKey(selected);
 
-            // We handle only methods.
-            if (!selected || !selected.includes("method:")) {
+            if (!protoDefinitions){
               return;
             }
 
-            const fragments = selected.split('/');
-            const methodName = fragments[1].replace('method:', '');
-            const serviceName = fragments[2].replace('service:', '');
+            onMethodSelected(protoDefinitions.methodName, protoDefinitions.protodef.services[protoDefinitions.serviceName]);
+          }}
+          onDoubleClick={async (event, treeNode)=>{
+            const selected = treeNode.props.eventKey;
+            const protoDefinitions = processSelectedKey(selected);
 
-            const protodef = protos.find((protoFile) => {
-              const match = Object.keys(protoFile.services).find((service) => service === serviceName);
-              return Boolean(match);
-            });
-
-            if (!protodef) {
+            if (!protoDefinitions){
               return;
             }
 
-            onMethodSelected(methodName, protodef.services[serviceName]);
+            // if the original one table doesn't exist, then ignore it
+            onMethodDoubleClick(protoDefinitions.methodName, protoDefinitions.protodef.services[protoDefinitions.serviceName])
           }}
         >
           {protos.map((proto) => (
@@ -131,12 +192,17 @@ export function Sidebar({ protos, onMethodSelected, onProtoUpload, onDeleteAll, 
                   key={`${proto.fileName}-${service}`}
                 >
 
-                  {proto.services[service].methodsName.map((method: any) => (
-                    <Tree.TreeNode
-                      icon={<Badge type="method"> M </Badge>}
-                      title={method}
-                      key={`${proto.fileName}/method:${method}/service:${service}`}
-                    >
+                  {proto.services[service].methodsName
+                    .filter((name) => {
+                      if (filterMatch === null) return true;
+                      return name.toLowerCase().includes(filterMatch.toLowerCase());
+                    })
+                    .map((method: any) => (
+                      <Tree.TreeNode
+                        icon={<Badge type="method"> M </Badge>}
+                        title={method}
+                        key={`${proto.proto.filePath}||method:${method}||service:${service}`}
+                      >
                     </Tree.TreeNode>
                   ))}
                 </Tree.TreeNode>

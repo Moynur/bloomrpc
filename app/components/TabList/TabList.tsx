@@ -1,7 +1,11 @@
 import * as React from 'react';
+import { useEffect } from 'react';
 import { Tabs } from 'antd';
-import { Editor, EditorRequest } from '../Editor';
+import { Editor, EditorEnvironment, EditorRequest } from '../Editor';
 import { ProtoInfo, ProtoService } from '../../behaviour';
+import { DraggableItem, DraggableTabs } from "./DraggableTabList";
+import * as Mousetrap from 'mousetrap';
+import 'mousetrap/plugins/global-bind/mousetrap-global-bind';
 
 interface TabListProps {
   tabs: TabData[]
@@ -9,6 +13,9 @@ interface TabListProps {
   onChange?: (activeKey: string) => void
   onDelete?: (activeKey: string | React.MouseEvent<HTMLElement>) => void
   onEditorRequestChange?: (requestInfo: EditorTabRequest) => void
+  onDragEnd: (indexes: {oldIndex: number, newIndex: number}) => void
+  environmentList?: EditorEnvironment[],
+  onEnvironmentChange?: () => void
 }
 
 export interface TabData {
@@ -22,7 +29,7 @@ export interface EditorTabRequest extends EditorRequest {
   id: string
 }
 
-export function TabList({ tabs, activeKey, onChange, onDelete, onEditorRequestChange }: TabListProps) {
+export function TabList({ tabs, activeKey, onChange, onDelete, onDragEnd, onEditorRequestChange, environmentList, onEnvironmentChange }: TabListProps) {
   const tabsWithMatchingKey =
     tabs.filter(tab => tab.tabKey === activeKey);
 
@@ -30,8 +37,22 @@ export function TabList({ tabs, activeKey, onChange, onDelete, onEditorRequestCh
     ? [...tabs.map(tab => tab.tabKey)].pop()
     : [...tabsWithMatchingKey.map(tab => tab.tabKey)].pop();
 
+  useEffect(() => {
+    Mousetrap.bindGlobal(['command+w', 'ctrl+w'], () => {
+      if (tabActiveKey) {
+        onDelete && onDelete(tabActiveKey);
+      }
+      return false;
+    });
+
+    return () => {
+      Mousetrap.unbind(['command+w', 'ctrl+w']);
+    }
+  });
+
   return (
     <Tabs
+      className={"draggable-tabs"}
       onEdit={(targetKey, action) => {
         if (action === "remove") {
           onDelete && onDelete(targetKey);
@@ -43,6 +64,33 @@ export function TabList({ tabs, activeKey, onChange, onDelete, onEditorRequestCh
       activeKey={tabActiveKey || "0"}
       hideAdd
       type="editable-card"
+      renderTabBar={(props, DefaultTabBar: any) => {
+        return (
+            <DraggableTabs
+                onSortEnd={onDragEnd}
+                lockAxis={"x"}
+                axis={"x"}
+                pressDelay={120}
+                helperClass={"draggable draggable-tab"}
+            >
+              <DefaultTabBar {...props}>
+                {(node: any) => {
+                  const nodeIndex = tabs.findIndex(tab => tab.tabKey === node.key);
+                  const nodeTab = tabs.find(tab => tab.tabKey === node.key);
+                  return (
+                      <DraggableItem
+                          active={nodeTab && nodeTab.tabKey === activeKey}
+                          index={nodeIndex}
+                          key={node.key}
+                      >
+                        {node}
+                      </DraggableItem>
+                  )
+                }}
+              </DefaultTabBar>
+            </DraggableTabs>
+        )
+      }}
     >
       {tabs.length === 0 ? (
         <Tabs.TabPane
@@ -51,7 +99,11 @@ export function TabList({ tabs, activeKey, onChange, onDelete, onEditorRequestCh
           closable={false}
           style={{ height: "100%" }}
         >
-          <Editor />
+          <Editor
+            active={true}
+            environmentList={environmentList}
+            onEnvironmentListChange={onEnvironmentChange}
+          />
         </Tabs.TabPane>
       ) : tabs.map((tab) => (
           <Tabs.TabPane
@@ -61,9 +113,12 @@ export function TabList({ tabs, activeKey, onChange, onDelete, onEditorRequestCh
             style={{ height: "100%" }}
           >
             <Editor
+              active={tab.tabKey === activeKey}
+              environmentList={environmentList}
               protoInfo={new ProtoInfo(tab.service, tab.methodName)}
               key={tab.tabKey}
               initialRequest={tab.initialRequest}
+              onEnvironmentListChange={onEnvironmentChange}
               onRequestChange={(editorRequest: EditorRequest) => {
                 onEditorRequestChange && onEditorRequestChange({
                   id: tab.tabKey,

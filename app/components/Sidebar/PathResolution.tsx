@@ -19,8 +19,6 @@ export function PathResolution({ importPaths, onImportsChange }: PathResolutionP
     value: importPath,
   }));
 
-  console.log(tablePaths);
-
   return (
     <div>
       <Table
@@ -47,9 +45,12 @@ export function PathResolution({ importPaths, onImportsChange }: PathResolutionP
                       onSearch={async () => {
                         try {
                           const path = await importResolvePath();
+                          if (path != null){
                           setPathStateValue(path);
+                          addImportPath(path, importPaths, onImportsChange);
+                        }
                         } catch (e) {
-                          // No file selected.§
+                          // No file selected.
                         }
                       }}
                     />
@@ -75,7 +76,7 @@ export function PathResolution({ importPaths, onImportsChange }: PathResolutionP
                         />
                       </Tooltip>
                   ) : (
-                      <Tooltip placement="top" title="Save">
+                      <Tooltip placement="top" title="Add">
                         <Icon
                             style={{color: '#28d440', fontSize: 18, cursor: "pointer", marginTop: 5}}
                             type="plus"

@@ -1,13 +1,14 @@
 import * as React from 'react';
 import { Tabs } from 'antd';
 import { Viewer } from './Viewer';
+import { EditorResponse } from "./Editor";
 
 interface ResponseProps {
-  streamResponse: string[]
-  output: string
+  streamResponse: EditorResponse[]
+  response: EditorResponse
 }
 
-export function Response({output, streamResponse}: ResponseProps) {
+export function Response({response, streamResponse}: ResponseProps) {
   const defaultKey = `responseTab`;
   return (
     <>
@@ -18,17 +19,26 @@ export function Response({output, streamResponse}: ResponseProps) {
       >
         {streamResponse.length === 0 && (
           <Tabs.TabPane tab={"Response"} key={"unaryResponse"}>
-              <Viewer output={output} emptyContent={(
-                <div style={styles.introContainer}>
-                  <h1 style={styles.introTitle}>Hit the play button to get a response here</h1>
-                  <img src={require('./../../../resources/blue/128x128.png')} style={{ opacity: 0.1 }}/>
-                </div>
-              )}/>
+              <Viewer
+                  output={response.output}
+                  responseTime={response.responseTime}
+                  emptyContent={(
+                    <div style={{position: "relative", height: "325px"}}>
+                      <div style={styles.introContainer}>
+                        <img src={require('./../../../resources/blue/128x128.png')} style={{ opacity: 0.1, pointerEvents: "none", userSelect: "none" }}/>
+                        <h1 style={styles.introTitle}>Hit the play button to get a response here</h1>
+                      </div>
+                    </div>
+                )}
+              />
           </Tabs.TabPane>
         )}
         {streamResponse.map((data, key) => (
           <Tabs.TabPane tab={`Stream ${key + 1}`} key={`response-${key}`}>
-            <Viewer output={data} />
+            <Viewer
+                output={data.output}
+                responseTime={data.responseTime}
+            />
           </Tabs.TabPane>
         ))}
       </Tabs>
@@ -39,14 +49,13 @@ export function Response({output, streamResponse}: ResponseProps) {
 const styles = {
   introContainer: {
     textAlign: "center" as "center",
-    position: "absolute" as "absolute",
-    left: "25%",
-    top: "35%",
+    margin: "20% 30% auto",
     width: "45%",
+    position: "absolute" as "absolute",
     zIndex: 7,
   },
   introTitle: {
-    position: "absolute" as "absolute",
+    userSelect: "none" as "none",
     color: "rgba(17, 112, 134, 0.58)",
     fontSize: "25px",
     top: "120px",

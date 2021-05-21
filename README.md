@@ -1,16 +1,27 @@
 <p align="center">
   <img src="./resources/blue/256x256.png" />
 </p>
+<h1 align="center">BloomRPC</h1>
 
-# BloomRPC
-The missing GUI Client for GRPC services. 
+<p align="center">
+  <img src="https://img.shields.io/github/release/uw-labs/bloomrpc.svg" />
+  <a href="https://uw-labs.slack.com/">
+    <img src="https://img.shields.io/badge/Join-Slack-e44a61.svg" />
+  </a>
+</p>
+<p align="center">The missing GUI Client for GRPC services. 🌸 </p>
 
-Inspired by **Postman** and **GraphQL Playground**. <br/>
-**BloomRPC** aim to give the simplest and efficient developer experience for exploring
+<p align="center">Inspired by <b>Postman</b> and <b>GraphQL Playground</b> <br/>
+  <b>BloomRPC</b> aims to provide the simplest and most efficient developer experience for exploring
 and querying your GRPC services.
+</p>
 
-Install the client, select your protobuf files and start making requests! <br/> 
-**No extra** steps or configuration **needed**.
+<br/>
+
+<p align="center">
+  Install the client, select your protobuf files and start making requests! <br/>
+  <b>No extra</b> steps or configuration <b>needed</b>.
+</p>
 
 ## Features
 
@@ -24,25 +35,53 @@ Install the client, select your protobuf files and start making requests! <br/>
 - Request Cancellation
 - Much more...
 
+### Shortcuts
+
+<kbd>CTRL</kbd>+<kbd>w</kbd> or <kbd>CMD</kbd>+<kbd>w</kbd>: close tab
+
+<kbd>ESC</kbd>: focos editor
+
+<kbd>CTRL</kbd>+<kbd>Enter</kbd> or <kbd>CMD</kbd>+<kbd>Enter</kbd>: send request
+
+### GRPC Web
+
+GRPC Web is now supported! Just toggle the `GRPC` switch to `WEB`.
+
+Note on https:
+
+- add https to the url, note for GRPC-Web it also supports path, e.g. https://example.com/grpcweb/v1
+- or turn on "TLS" -> Server certificate (default port will change to 443)
+- self-signed certificate not supported at the moment
+
 ## Installation
+We support all the major operation systems, **MacOS / Windows / Linux Deb - Arch Linux**
 
-#### MacOS and Linux Users:
+You can install the client downloading the installer directly from the [Releases Page](https://github.com/uw-labs/bloomrpc/releases)
 
-Download the installer from the [Releases Page](https://github.com/uw-labs/bloomrpc/releases)
+#### For MacOS and Homebrew users:
 
-#### Windows
-We currently don't officially support Windows, because we haven't
-setup CI for building the Windows installer just yet.
+```
+brew install --cask bloomrpc
+```
+The app will get installed and copied to the path `/Applications/BloomRPC.app`
 
-**Build from source:**
+#### For Windows and chocolatey users:
+
+```
+choco install bloomrpc
+```
+Search for bloomrpc in windows search.
+
+### Build from source:
 
 ```
 git clone https://github.com/uw-labs/bloomrpc.git
 cd bloomrpc
 
 yarn install && ./node_modules/.bin/electron-rebuild
-npm run package-win
+npm run package
 ```
+The installer will be located in the `release` folder
 
 ## Preview
 
@@ -52,9 +91,8 @@ npm run package-win
 ## Planned Features
 
 - [x] Client-Side Streaming and Bi-Directional Streaming Support
-- [ ] Draggable tabs
-- [ ] Multi theme Editor
-- [ ] Web Version with GRPC-WEB
+- [x] Draggable tabs
+- [x] Web Version with GRPC-WEB
 
 ## Contributing
 
@@ -64,8 +102,8 @@ We are welcome to any kind of feedback and contributions.
 
 Run this 2 commands in two different terminals
 ```
-npm run hot-server
-npm run start-hot
+npm run start-server-dev
+npm run start-main-dev
 ```
 
 ## Built with amazing technologies

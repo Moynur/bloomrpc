@@ -1,48 +1,42 @@
 import * as React from 'react';
-import { ChangeEvent, useEffect, useReducer } from 'react';
-import { Drawer, Icon, Input } from 'antd';
+import { useEffect, useReducer } from 'react';
 import {
   actions,
-  setData,
+  setData, setEnvironment, setInteractive,
   setMetadata,
   setMetadataVisibilty,
   setProtoVisibility,
   setTSLCertificate,
   setUrl,
 } from './actions';
-import AceEditor from 'react-ace';
 import { Response } from './Response';
 import { Metadata } from './Metadata';
-import { Controls } from './Controls';
+import { Controls, isControlVisible } from './Controls';
 import { Request } from './Request';
 import { Options } from './Options';
-import { RequestType } from './RequestType';
-import { Certificate, GRPCRequest, ProtoInfo } from '../../behaviour';
-import { getInteractive, getUrl, storeUrl } from '../../storage';
+import { ProtoFileViewer } from './ProtoFileViewer';
+import { Certificate, ProtoInfo, GRPCEventEmitter } from '../../behaviour';
+import { getMetadata, getUrl, storeUrl } from '../../storage';
 
 import 'brace/theme/textmate';
 import 'brace/mode/json';
 import 'brace/mode/protobuf';
+import { exportResponseToJSONFile } from "../../behaviour/response";
+import Resizable from "re-resizable";
+import { AddressBar } from "./AddressBar";
+import { deleteEnvironment, getEnvironments, saveEnvironment } from "../../storage/environments";
 
 export interface EditorAction {
   [key: string]: any
   type: string
 }
 
-export interface EditorState {
+export interface EditorEnvironment {
+  name: string
   url: string
-  data: string
-  loading: boolean
-  output: string
-  metadataOpened: boolean
-  protoViewVisible: boolean
-  metadata: string
-  requestStreamData: string[]
-  responseStreamData: string[]
+  metadata: string,
   interactive: boolean
-  streamCommitted: boolean
-  call?: GRPCRequest
-  tlsCertificate?: Certificate
+  tlsCertificate: Certificate,
 }
 
 export interface EditorRequest {
@@ -51,29 +45,54 @@ export interface EditorRequest {
   inputs?: string // @deprecated
   metadata: string
   interactive: boolean
+  environment?: string
+  grpcWeb: boolean
   tlsCertificate?: Certificate
+}
+
+export interface EditorState extends EditorRequest {
+  loading: boolean
+  response: EditorResponse
+  metadataOpened: boolean
+  protoViewVisible: boolean
+  requestStreamData: string[]
+  responseStreamData: EditorResponse[]
+  streamCommitted: boolean
+  call?: GRPCEventEmitter
 }
 
 export interface EditorProps {
   protoInfo?: ProtoInfo
   onRequestChange?: (editorRequest: EditorRequest & EditorState) => void
   initialRequest?: EditorRequest
+  environmentList?: EditorEnvironment[]
+  onEnvironmentListChange?: (environmentList: EditorEnvironment[]) => void
+  active?: boolean
+}
+
+export interface EditorResponse {
+  output: string;
+  responseTime?: number;
 }
 
 const INITIAL_STATE: EditorState = {
   url: "0.0.0.0:3009",
   data: "",
+  metadata: "",
   requestStreamData: [],
   responseStreamData: [],
   interactive: false,
+  grpcWeb: false,
   loading: false,
-  output: "",
+  response: {
+    output: "",
+    responseTime: undefined,
+  },
   metadataOpened: false,
   protoViewVisible: false,
   streamCommitted: false,
-  metadata: "",
-  call: undefined,
   tlsCertificate: undefined,
+  call: undefined,
 };
 
 /**
@@ -93,8 +112,8 @@ const reducer = (state: EditorState, action: EditorAction) => {
     case actions.SET_IS_LOADING:
       return { ...state, loading: action.isLoading };
 
-    case actions.SET_OUTPUT:
-      return { ...state, output: action.output };
+    case actions.SET_RESPONSE:
+      return { ...state, response: action.response };
 
     case actions.SET_CALL:
       return { ...state, call: action.call };
@@ -111,6 +130,9 @@ const reducer = (state: EditorState, action: EditorAction) => {
     case actions.SET_INTERACTIVE:
       return { ...state, interactive: action.interactive };
 
+    case actions.SET_GRPC_WEB:
+      return { ...state, grpcWeb: action.grpcWeb };
+
     case actions.SET_REQUEST_STREAM_DATA:
       return { ...state, requestStreamData: action.requestData };
 
@@ -125,17 +147,24 @@ const reducer = (state: EditorState, action: EditorAction) => {
 
     case actions.SET_SSL_CERTIFICATE:
       return { ...state, tlsCertificate: action.certificate };
+
+    case actions.SET_ENVIRONMENT:
+      return { ...state, environment: action.environment };
+
     default:
       return state
   }
 };
 
-export function Editor({ protoInfo, initialRequest, onRequestChange }: EditorProps) {
-  const [state, dispatch] = useReducer<EditorState, EditorAction>(reducer, {
+export function Editor({ protoInfo, initialRequest, onRequestChange, onEnvironmentListChange, environmentList, active }: EditorProps) {
+  const [state, dispatch] = useReducer(reducer, {
     ...INITIAL_STATE,
     url: (initialRequest && initialRequest.url) || getUrl() || INITIAL_STATE.url,
-    interactive: (initialRequest && initialRequest.interactive) || getInteractive() || INITIAL_STATE.interactive,
-  });
+    interactive: initialRequest ? initialRequest.interactive : (protoInfo && protoInfo.usesStream()) || INITIAL_STATE.interactive,
+    grpcWeb: initialRequest ? initialRequest.grpcWeb : INITIAL_STATE.grpcWeb,
+    metadata: (initialRequest && initialRequest.metadata) || getMetadata() || INITIAL_STATE.metadata,
+    environment: (initialRequest && initialRequest.environment),
+  }, undefined);
 
   useEffect(() => {
     if (protoInfo && !initialRequest) {
@@ -160,31 +189,89 @@ export function Editor({ protoInfo, initialRequest, onRequestChange }: EditorPro
   return (
     <div style={styles.tabContainer}>
       <div style={styles.inputContainer}>
-        <div style={{ width: "50%" }}>
-          <Input
-            className="server-url"
-            addonAfter={(
-              <div style={{display: "flex", alignItems: "center", width: "125px"}}>
-                {state.loading ? <Icon type="loading"/> : <Icon type="database"/>}
-                <RequestType protoInfo={protoInfo} />
-              </div>
-            )}
-            defaultValue={state.url}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              dispatch(setUrl(e.target.value));
-              storeUrl(e.target.value);
-              onRequestChange && onRequestChange({
-                ...state,
-                url: e.target.value,
-              });
-            }}/>
+        <div style={{ width: "60%" }}>
+          <AddressBar
+              protoInfo={protoInfo}
+              loading={state.loading}
+              url={state.url}
+              defaultEnvironment={state.environment}
+              environments={environmentList}
+              onChangeEnvironment={(environment) => {
+
+                if (!environment) {
+                  dispatch(setEnvironment(""));
+                  onRequestChange && onRequestChange({
+                    ...state,
+                    environment: "",
+                  });
+                  return;
+                }
+
+                dispatch(setUrl(environment.url));
+                dispatch(setMetadata(environment.metadata));
+                dispatch(setEnvironment(environment.name));
+                dispatch(setTSLCertificate(environment.tlsCertificate));
+                dispatch(setInteractive(environment.interactive));
+
+                onRequestChange && onRequestChange({
+                  ...state,
+                  environment: environment.name,
+                  url: environment.url,
+                  metadata: environment.metadata,
+                  tlsCertificate: environment.tlsCertificate,
+                  interactive: environment.interactive,
+                });
+              }}
+              onEnvironmentDelete={(environmentName) => {
+                deleteEnvironment(environmentName);
+                dispatch(setEnvironment(""));
+                onRequestChange && onRequestChange({
+                  ...state,
+                  environment: "",
+                });
+                onEnvironmentListChange && onEnvironmentListChange(
+                    getEnvironments()
+                );
+              }}
+              onEnvironmentSave={(environmentName) => {
+                saveEnvironment({
+                  name: environmentName,
+                  url: state.url,
+                  interactive: state.interactive,
+                  metadata: state.metadata,
+                  tlsCertificate: state.tlsCertificate,
+                });
+
+                dispatch(setEnvironment(environmentName));
+                onRequestChange && onRequestChange({
+                  ...state,
+                  environment: environmentName,
+                });
+
+                onEnvironmentListChange && onEnvironmentListChange(
+                    getEnvironments()
+                );
+              }}
+              onChangeUrl={(e) => {
+                dispatch(setUrl(e.target.value));
+                storeUrl(e.target.value);
+                onRequestChange && onRequestChange({
+                  ...state,
+                  url: e.target.value,
+                });
+              }}
+          />
         </div>
 
         {protoInfo && (
           <Options
             protoInfo={protoInfo}
             dispatch={dispatch}
+            grpcWebChecked={state.grpcWeb}
             interactiveChecked={state.interactive}
+            onClickExport={async () => {
+              await exportResponseToJSONFile(protoInfo, state)
+            }}
             onInteractiveChange={(checked) => {
               onRequestChange && onRequestChange({
                 ...state,
@@ -203,31 +290,45 @@ export function Editor({ protoInfo, initialRequest, onRequestChange }: EditorPro
         )}
       </div>
 
-      <div style={styles.playIconContainer}>
-        <Controls
-          dispatch={dispatch}
-          state={state}
-          protoInfo={protoInfo}
-        />
-      </div>
-
       <div style={styles.editorContainer}>
-        <Request
-          data={state.data}
-          streamData={state.requestStreamData}
-          onChangeData={(value) => {
-            dispatch(setData(value));
-            onRequestChange && onRequestChange({
-              ...state,
-              data: value,
-            });
-          }}
-        />
+        <Resizable
+            enable={{ right: true }}
+            defaultSize={{
+              width: "50%",
+            }}
+            maxWidth={"80%"}
+            minWidth={"10%"}
+        >
+          <Request
+            data={state.data}
+            streamData={state.requestStreamData}
+            active={active}
+            onChangeData={(value) => {
+              dispatch(setData(value));
+              onRequestChange && onRequestChange({
+                ...state,
+                data: value,
+              });
+            }}
+          />
 
-        <div style={styles.responseContainer}>
+          <div style={{
+            ...styles.playIconContainer,
+            ...(isControlVisible(state) ? styles.streamControlsContainer : {}),
+          }}>
+            <Controls
+                active={active}
+                dispatch={dispatch}
+                state={state}
+                protoInfo={protoInfo}
+            />
+          </div>
+        </Resizable>
+
+        <div style={{...styles.responseContainer}}>
           <Response
             streamResponse={state.responseStreamData}
-            output={state.output}
+            response={state.response}
           />
         </div>
       </div>
@@ -244,46 +345,14 @@ export function Editor({ protoInfo, initialRequest, onRequestChange }: EditorPro
           });
         }}
         value={state.metadata}
-        visibile={state.metadataOpened}
       />
 
       {protoInfo && (
-        <Drawer
-          title={protoInfo.service.proto.fileName.split('/').pop()}
-          placement={"right"}
-          width={"50%"}
-          closable={false}
-          onClose={() => dispatch(setProtoVisibility(false))}
+        <ProtoFileViewer
+          protoInfo={protoInfo}
           visible={state.protoViewVisible}
-        >
-          <AceEditor
-            style={{ marginTop: "10px", background: "#fff" }}
-            width={"100%"}
-            height={"calc(100vh - 115px)"}
-            mode="protobuf"
-            theme="textmate"
-            name="output"
-            fontSize={13}
-            showPrintMargin={false}
-            wrapEnabled
-
-            showGutter={false}
-            readOnly
-            highlightActiveLine={false}
-            value={protoInfo.service.proto.protoText}
-            onLoad={(editor: any) => {
-              editor.renderer.$cursorLayer.element.style.display = "none";
-              editor.gotoLine(0, 0, true);
-            }}
-            setOptions={{
-              useWorker: true,
-              showLineNumbers: false,
-              highlightGutterLine: false,
-              fixedWidthGutter: true,
-              tabSize: 1,
-            }}
-          />
-        </Drawer>
+          onClose={() => dispatch(setProtoVisibility(false))}
+        />
       )}
     </div>
   )
@@ -293,6 +362,7 @@ const styles = {
   tabContainer: {
     width: "100%",
     height: "100%",
+    position: "relative" as "relative",
   },
   editorContainer: {
     display: "flex",
@@ -302,7 +372,10 @@ const styles = {
   },
   responseContainer: {
     background: "white",
-    width: "50%",
+    maxWidth: "inherit",
+    width: "inherit",
+    display: "flex",
+    flex: "1 1 0%",
     borderLeft: "1px solid #eee",
     borderRight: "1px solid rgba(0, 21, 41, 0.18)",
     overflow: "auto"
@@ -310,9 +383,12 @@ const styles = {
   playIconContainer: {
     position: "absolute" as "absolute",
     zIndex: 10,
-    left: "50%",
+    right: "-30px",
     marginLeft: "-25px",
-    top: "50%",
+    top: "calc(50% - 80px)",
+  },
+  streamControlsContainer: {
+    right: "-42px",
   },
   inputContainer: {
     display: "flex",

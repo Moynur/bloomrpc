@@ -14,7 +14,7 @@ export class ProtoInfo {
   }
 
   client(): any {
-      return lodashGet(this.service.proto.ast, this.service.serviceName);
+    return lodashGet(this.service.proto.ast, this.service.serviceName);
   }
 
   serviceDef() {
@@ -27,14 +27,20 @@ export class ProtoInfo {
   }
 
   isClientStreaming() {
-    return this.methodDef().requestStream;
+    const method = this.methodDef();
+    return method && method.requestStream;
   }
 
   isServerStreaming() {
-    return this.methodDef().responseStream;
+    const method = this.methodDef();
+    return method && method.responseStream;
   }
 
   isBiDirectionalStreaming() {
     return this.isClientStreaming() && this.isServerStreaming();
+  }
+
+  usesStream() {
+    return this.isClientStreaming() || this.isServerStreaming();
   }
 }

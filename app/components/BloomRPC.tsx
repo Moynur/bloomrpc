@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { Layout, notification } from 'antd';
+import arrayMove from 'array-move';
 import { Sidebar } from './Sidebar';
 import { TabData, TabList } from './TabList';
 import { loadProtos, ProtoFile, ProtoService } from '../behaviour';
@@ -15,6 +16,9 @@ import {
   storeRequestInfo,
   storeTabs,
 } from '../storage';
+import { EditorEnvironment } from "./Editor";
+import { getEnvironments } from "../storage/environments";
+import { v4 as uuidv4 } from 'uuid';
 
 export interface EditorTabs {
   activeKey: string
@@ -28,6 +32,8 @@ export function BloomRPC() {
     activeKey: "0",
     tabs: [],
   });
+
+  const [environments, setEnvironments] = useState<EditorEnvironment[]>(getEnvironments());
 
   function setTabs(props: EditorTabs) {
     setEditorTabs(props);
@@ -47,7 +53,7 @@ export function BloomRPC() {
   return (
     <Layout style={styles.layout}>
       <Layout>
-        <Layout.Sider style={styles.sider} width={250}>
+        <Layout.Sider style={styles.sider} width={ 300 }>
           <Sidebar
             protos={protos}
             onProtoUpload={handleProtoUpload(setProtos, protos)}
@@ -58,13 +64,30 @@ export function BloomRPC() {
             onDeleteAll={() => {
               setProtos([]);
             }}
+            onMethodDoubleClick={handleMethodDoubleClick(editorTabs, setTabs)}
           />
         </Layout.Sider>
 
         <Layout.Content>
           <TabList
-            tabs={editorTabs.tabs}
+            tabs={editorTabs.tabs || []}
+            onDragEnd={({oldIndex, newIndex}) => {
+              const newTab = editorTabs.tabs[oldIndex];
+
+              setTabs({
+                activeKey: newTab && newTab.tabKey || editorTabs.activeKey,
+                tabs: arrayMove(
+                    editorTabs.tabs,
+                    oldIndex,
+                    newIndex,
+                ).filter(e => e),
+              })
+            }}
             activeKey={editorTabs.activeKey}
+            environmentList={environments}
+            onEnvironmentChange={() => {
+              setEnvironments(getEnvironments());
+            }}
             onEditorRequestChange={(editorRequestInfo) => {
               storeRequestInfo(editorRequestInfo);
             }}
@@ -98,7 +121,7 @@ export function BloomRPC() {
             onChange={(activeKey: string) => {
               setTabs({
                 activeKey,
-                tabs: editorTabs.tabs,
+                tabs: editorTabs.tabs || [],
               })
             }}
           />
@@ -155,26 +178,26 @@ async function loadTabs(editorTabs: EditorTabsStorage): Promise<EditorTabs> {
     return tab.protoPath;
   }), importPaths);
 
-
-  storedEditTabs.tabs = editorTabs.tabs.map((tab) => {
+  const previousTabs = editorTabs.tabs.map((tab) => {
     const def = protos.find((protoFile) => {
       const match = Object.keys(protoFile.services).find((service) => service === tab.serviceName);
       return Boolean(match);
     });
 
+    // Old Definition Not found
     if (!def) {
-      throw new Error("Not found.");
+      return false;
     }
-
-    const tabKey = `${tab.serviceName}${tab.methodName}`;
 
     return {
-      tabKey,
+      tabKey: tab.tabKey,
       methodName: tab.methodName,
       service: def.services[tab.serviceName],
-      initialRequest: getRequestInfo(tabKey),
+      initialRequest: getRequestInfo(tab.tabKey),
     }
   });
+
+  storedEditTabs.tabs = previousTabs.filter((tab) => tab) as TabData[];
 
   return storedEditTabs;
 }
@@ -243,6 +266,24 @@ function handleMethodSelected(editorTabs: EditorTabs, setTabs: React.Dispatch<Ed
       tabs: newTabs,
     });
   }
+}
+
+function handleMethodDoubleClick(editorTabs: EditorTabs, setTabs: React.Dispatch<EditorTabs>){
+  return (methodName: string, protoService: ProtoService) => {
+    const tab = {
+      tabKey: `${protoService.serviceName}${methodName}-${uuidv4()}`,
+      methodName,
+      service: protoService
+    };
+
+    const newTabs = [...editorTabs.tabs, tab];
+
+    setTabs({
+      activeKey: tab.tabKey,
+      tabs: newTabs,
+    });
+  }
+
 }
 
 const styles = {

@@ -5,7 +5,8 @@ import { ProtoFile, ProtoService } from './protobuf';
 import { Service } from 'protobufjs';
 
 const commonProtosPath = [
-  path.join(process.cwd(), "node_modules/bloomrpc-mock/common"),
+  // @ts-ignore
+  path.join(__static),
 ];
 
 export type OnProtoUpload = (protoFiles: ProtoFile[], err?: Error) => void
@@ -15,18 +16,21 @@ export type OnProtoUpload = (protoFiles: ProtoFile[], err?: Error) => void
  * @param onProtoUploaded
  * @param importPaths
  */
-export function importProtos(onProtoUploaded: OnProtoUpload, importPaths?: string[]) {
-  remote.dialog.showOpenDialog({
+export async function importProtos(onProtoUploaded: OnProtoUpload, importPaths?: string[]) {
+
+  const openDialogResult = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
     properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'Protos', extensions: ['proto'] },
     ]
-  }, async (filePaths) => {
-    if (!filePaths) {
-      return;
-    }
-    await loadProtos(filePaths, importPaths, onProtoUploaded);
   });
+
+  const filePaths = openDialogResult.filePaths;
+
+  if (!filePaths) {
+    return;
+  }
+  await loadProtos(filePaths, importPaths, onProtoUploaded);
 }
 
 /**
@@ -95,16 +99,17 @@ function parseServices(proto: Proto) {
 }
 
 export function importResolvePath(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    remote.dialog.showOpenDialog({
+  return new Promise(async (resolve, reject) => {
+    const openDialogResult = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
       properties: ['openDirectory'],
       filters: []
-    }, (filePaths) => {
-      if (!filePaths) {
-        return reject("No folder selected");
-      }
-      resolve(filePaths[0]);
     });
-  })
 
+    const filePaths = openDialogResult.filePaths;
+
+    if (!filePaths) {
+      return reject("No folder selected");
+    }
+    resolve(filePaths[0]);
+  });
 }

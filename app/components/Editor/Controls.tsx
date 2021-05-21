@@ -9,21 +9,20 @@ export interface ControlsStateProps {
   dispatch: React.Dispatch<EditorAction>
   state: EditorState
   protoInfo?: ProtoInfo
+  active?: boolean
 }
 
-export function Controls({ dispatch, state, protoInfo }: ControlsStateProps) {
+export function Controls({ dispatch, state, protoInfo, active }: ControlsStateProps) {
   return (
     <div>
       <PlayButton
+        active={active}
         dispatch={dispatch}
         state={state}
         protoInfo={protoInfo}
       />
 
-      {
-        (state.interactive && state.loading) &&
-        (state.call && state.call.protoInfo.isClientStreaming())
-        && !state.streamCommitted &&
+      { isControlVisible(state) &&
         (
           <div style={styles.controlsContainer}>
             <Tooltip placement="topLeft" title={"Push Data"}>
@@ -56,6 +55,13 @@ export function Controls({ dispatch, state, protoInfo }: ControlsStateProps) {
         )}
       </div>
   );
+}
+
+export function isControlVisible(state: EditorState) {
+  return Boolean(
+      (state.interactive && state.loading) &&
+      (state.call && state.call.protoInfo.isClientStreaming()) &&
+      !state.streamCommitted);
 }
 
 const styles = {

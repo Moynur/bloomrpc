@@ -15,6 +15,7 @@ const KEYS = {
   TABS: "tabs",
   REQUESTS: "requests",
   INTERACTIVE: "interactive",
+  METADATA: "metadata",
 };
 
 /**
@@ -23,14 +24,6 @@ const KEYS = {
  */
 export function storeUrl(url: string) {
   EditorStore.set(KEYS.URL, url);
-}
-
-export function storeInteractive(interactive: boolean) {
-  EditorStore.set(KEYS.INTERACTIVE, interactive);
-}
-
-export function getInteractive() {
-  return Boolean(EditorStore.get(KEYS.INTERACTIVE));
 }
 
 /**
@@ -66,6 +59,7 @@ export function storeTabs(editorTabs: EditorTabs) {
       methodName: tab.methodName,
       serviceName: tab.service.serviceName,
       protoPath: tab.service.proto.filePath,
+      tabKey: tab.tabKey
     })),
   })
 }
@@ -76,6 +70,7 @@ export interface EditorTabsStorage {
     protoPath: string,
     methodName: string,
     serviceName: string,
+    tabKey: string
   }[]
 }
 
@@ -100,7 +95,7 @@ interface TabRequestInfo extends EditorRequest {
  * @param interactive
  * @param tlsCertificate
  */
-export function storeRequestInfo({id, url, data, inputs, metadata, interactive, tlsCertificate}: EditorTabRequest) {
+export function storeRequestInfo({id, url, data, inputs, metadata, interactive, tlsCertificate, environment, grpcWeb}: EditorTabRequest) {
   const request = {
     id,
     url,
@@ -108,6 +103,8 @@ export function storeRequestInfo({id, url, data, inputs, metadata, interactive, 
     metadata,
     interactive,
     tlsCertificate,
+    environment,
+    grpcWeb,
     createdAt: new Date().toISOString(),
   };
 
@@ -115,6 +112,14 @@ export function storeRequestInfo({id, url, data, inputs, metadata, interactive, 
     .filter((requestItem: TabRequestInfo) => requestItem.id !== id);
 
   EditorStore.set(KEYS.REQUESTS, [...requestList, request]);
+}
+
+export function storeMetadata(metadata: string) {
+  EditorStore.set(KEYS.METADATA, metadata);
+}
+
+export function getMetadata() {
+  return EditorStore.get(KEYS.METADATA);
 }
 
 /**
