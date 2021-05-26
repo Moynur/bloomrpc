@@ -4,9 +4,6 @@ import { ProtoInfo } from './protoInfo';
 import * as grpc from 'grpc';
 import * as fs from "fs";
 import { Certificate } from "./importCertificates";
-<<<<<<< HEAD
-import { parse as parseError } from './grpcErrorParser';
-=======
 import * as grpcWeb from 'grpc-web'
 
 export interface GRPCEventEmitter extends EventEmitter {
@@ -16,7 +13,6 @@ export interface GRPCEventEmitter extends EventEmitter {
   commitStream(): void;
   cancel(): void;
 }
->>>>>>> master
 
 export interface GRPCRequestInfo {
   url: string;
@@ -117,27 +113,7 @@ export class GRPCRequest extends EventEmitter {
 
     // Server Streaming.
     if (methodDefinition.responseStream) {
-<<<<<<< HEAD
-      call.on('data', (data: object) => {
-        this.emit(GRPCEventType.DATA, data, true);
-      });
-
-      call.on('error', (err: ServiceError) => {
-        if (err && err.code !== 1) {
-          this.emitError(err);
-
-          if (err.code === 2 || err.code === 14) { // Stream Removed.
-            this.emit(GRPCEventType.END, call);
-          }
-        }
-      });
-
-      call.on('end', () => {
-        this.emit(GRPCEventType.END, this);
-      });
-=======
       this.handleServerStreaming(call, requestStartTime);
->>>>>>> master
     }
 
     this._call = call;
@@ -303,11 +279,7 @@ export class GRPCRequest extends EventEmitter {
       if (err.code === 1) {
         return;
       } else {
-<<<<<<< HEAD
-        this.emitError(err);
-=======
         this.emit(GRPCEventType.ERROR, err, responseMetaInformation);
->>>>>>> master
       }
     } else {
       this.emit(GRPCEventType.DATA, response, responseMetaInformation);
@@ -360,18 +332,6 @@ export class GRPCRequest extends EventEmitter {
 
     return { inputs, metadata };
   }
-<<<<<<< HEAD
-
-  private emitError(serviceError: ServiceError) {
-    parseError(serviceError).then((errorObject) => {
-      this.emit(GRPCEventType.ERROR, errorObject)
-    }).catch((e) => {
-      console.warn(e);
-      this.emit(GRPCEventType.ERROR, { message: serviceError.message, code: serviceError.code });
-    });
-  }
-}
-=======
 }
 
 export class GRPCWebRequest extends EventEmitter {
@@ -592,4 +552,3 @@ export class GRPCWebRequest extends EventEmitter {
     return { inputs, metadata };
   }
 }
->>>>>>> master

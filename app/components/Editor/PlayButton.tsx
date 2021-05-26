@@ -11,11 +11,7 @@ import {
   addResponseStreamData, setStreamCommitted
 } from './actions';
 import { ControlsStateProps } from './Controls';
-<<<<<<< HEAD
-import { GRPCEventType, GRPCRequest, ResponseError } from '../../behaviour';
-=======
 import { GRPCEventType, GRPCRequest, ResponseMetaInformation, GRPCEventEmitter, GRPCWebRequest } from '../../behaviour';
->>>>>>> master
 
 export const makeRequest = ({ dispatch, state, protoInfo }: ControlsStateProps) => {
   // Do nothing if not set
@@ -75,11 +71,6 @@ export const makeRequest = ({ dispatch, state, protoInfo }: ControlsStateProps) 
     }));
   });
 
-<<<<<<< HEAD
-        grpcRequest.on(GRPCEventType.ERROR, (responseError: ResponseError) => {
-          dispatch(setOutput(JSON.stringify(responseError, null, 2)));
-        });
-=======
   grpcRequest.on(GRPCEventType.DATA, (data: object, metaInfo: ResponseMetaInformation) => {
     if (metaInfo.stream && state.interactive) {
       dispatch(addResponseStreamData({
@@ -93,7 +84,6 @@ export const makeRequest = ({ dispatch, state, protoInfo }: ControlsStateProps) 
       }));
     }
   });
->>>>>>> master
 
   grpcRequest.on(GRPCEventType.END, () => {
     dispatch(setIsLoading(false));
